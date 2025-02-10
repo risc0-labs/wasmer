@@ -121,7 +121,8 @@ socket2 = "0.5.7"
 pretty_assertions = "1.4.0"
 base64 = "0.22.0"
 time = "0.3.36"
-target-lexicon = { version = "0.12.2", default-features = false }
+# alternative fork of target-lexicon that supports the r0 ZKVM
+target-lexicon = { git = "https://github.com/weikengchen/target-lexicon", default-features = false }
 object = "0.32.0"
 derive_more = { version = "1", features = ["debug"] }
 

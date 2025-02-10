@@ -10,7 +10,7 @@ use crate::vmcontext::{VMFunctionContext, VMTrampoline};
 use crate::{Trap, VMContext, VMFunctionBody};
 use backtrace::Backtrace;
 use core::ptr::{read, read_unaligned};
-use corosensei::stack::DefaultStack;
+use corosensei::stack::{Stack, StackPointer, MIN_STACK_SIZE, STACK_ALIGNMENT};
 use corosensei::trap::{CoroutineTrapHandler, TrapHandlerRegs};
 use corosensei::{Coroutine, CoroutineResult, Yielder};
 use scopeguard::defer;
@@ -39,6 +39,59 @@ pub struct VMConfig {
 static MAGIC: u8 = 0xc0;
 
 static DEFAULT_STACK_SIZE: AtomicUsize = AtomicUsize::new(1024 * 1024);
+
+use std::alloc::{alloc, dealloc, Layout};
+
+pub struct BareMetalStack {
+    base: StackPointer,
+    size: usize,
+    _marker: core::marker::PhantomData<*mut u8>, // To enforce ownership
+}
+
+impl BareMetalStack {
+    /// Creates a new stack with the given size.
+    pub fn new(size: usize) -> Result<Self, &'static str> {
+        // Apply minimum stack size.
+        let size = size.max(MIN_STACK_SIZE);
+
+        // Allocate memory for the stack using the global allocator.
+        let layout = Layout::from_size_align(size, 16).unwrap();
+        let base_ptr = unsafe { alloc(layout) };
+        if base_ptr.is_null() {
+            return Err("Failed to allocate stack memory");
+        }
+
+        Ok(Self {
+            base: StackPointer::new(base_ptr as usize + size).unwrap(),
+            size,
+            _marker: core::marker::PhantomData,
+        })
+    }
+}
+
+impl Drop for BareMetalStack {
+    fn drop(&mut self) {
+        unsafe {
+            // Deallocate the stack memory using the global allocator.
+            let layout = Layout::from_size_align(self.size, STACK_ALIGNMENT).unwrap();
+            dealloc((self.base.get() - self.size) as *mut u8, layout);
+        }
+    }
+}
+
+unsafe impl Send for BareMetalStack {}
+
+unsafe impl Stack for BareMetalStack {
+    #[inline]
+    fn base(&self) -> StackPointer {
+        self.base
+    }
+
+    #[inline]
+    fn limit(&self) -> StackPointer {
+        StackPointer::new(self.base.get() - self.size).unwrap()
+    }
+}
 
 // Current definition of `ucontext_t` in the `libc` crate is incorrect
 // on aarch64-apple-drawin so it's defined here with a more accurate definition.
@@ -941,12 +994,12 @@ fn on_wasm_stack<F: FnOnce() -> T + 'static, T: 'static>(
     // system calls. We therefore keep a cache of pre-allocated stacks which
     // allows them to be reused multiple times.
     // FIXME(Amanieu): We should refactor this to avoid the lock.
-    static STACK_POOL: LazyLock<crossbeam_queue::SegQueue<DefaultStack>> =
+    static STACK_POOL: LazyLock<crossbeam_queue::SegQueue<BareMetalStack>> =
         LazyLock::new(crossbeam_queue::SegQueue::new);
 
     let stack = STACK_POOL
         .pop()
-        .unwrap_or_else(|| DefaultStack::new(stack_size).unwrap());
+        .unwrap_or_else(|| BareMetalStack::new(stack_size).unwrap());
     let mut stack = scopeguard::guard(stack, |stack| STACK_POOL.push(stack));
 
     // Create a coroutine with a new stack to run the function on.

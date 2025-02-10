@@ -54,7 +54,7 @@ wasmer-vm = { path = "../vm", version = "=5.0.5-rc1" }
 wasmer-compiler = { path = "../compiler", version = "=5.0.5-rc1" }
 wasmer-derive = { path = "../derive", version = "=5.0.5-rc1" }
 wasmer-types = { path = "../types", version = "=5.0.5-rc1" }
-target-lexicon = { version = "0.12.2", default-features = false }
+target-lexicon = { workspace = true, default-features = false }
 # - Optional dependencies for `sys`.
 wasmer-compiler-singlepass = { path = "../compiler-singlepass", version = "=5.0.5-rc1", optional = true }
 wasmer-compiler-cranelift = { path = "../compiler-cranelift", version = "=5.0.5-rc1", optional = true }

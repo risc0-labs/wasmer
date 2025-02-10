@@ -926,9 +926,7 @@ checksum = "ad067b451c08956709f8762dba86e049c124ea52858e3ab8d076ba2892caa437"
 dependencies = [
  "autocfg",
  "cfg-if",
- "libc",
  "scopeguard",
- "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5117,6 +5115,11 @@ checksum = "422045212ea98508ae3d28025bc5aaa2bd4a9cdaecd442a08da2ee620ee9ea95"
 
 [[package]]
 name = "target-lexicon"
+version = "0.12.12"
+source = "git+https://github.com/weikengchen/target-lexicon#dab57b421c14e6ae16609bb94bb44dbb9852516d"
+
+[[package]]
+name = "target-lexicon"
 version = "0.12.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
@@ -6560,7 +6563,7 @@ dependencies = [
  "serde-wasm-bindgen",
  "shared-buffer",
  "tar",
- "target-lexicon 0.12.16",
+ "target-lexicon 0.12.12",
  "tempfile",
  "thiserror 1.0.69",
  "tracing",
@@ -6834,7 +6837,7 @@ dependencies = [
  "serde_bytes",
  "shared-buffer",
  "smallvec",
- "target-lexicon 0.12.16",
+ "target-lexicon 0.12.12",
  "thiserror 1.0.69",
  "wasmer-types",
  "wasmer-vm",
@@ -7127,7 +7130,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "sha2",
- "target-lexicon 0.12.16",
+ "target-lexicon 0.12.12",
  "thiserror 1.0.69",
  "xxhash-rust",
 ]
