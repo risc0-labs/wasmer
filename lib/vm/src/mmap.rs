@@ -55,7 +55,11 @@ impl Mmap {
 
     /// Create a new `Mmap` pointing to at least `size` bytes of page-aligned accessible memory.
     pub fn with_at_least(size: usize) -> Result<Self, String> {
+        #[cfg(not(target_os = "zkvm"))]
         let page_size = region::page::size();
+        #[cfg(target_os = "zkvm")]
+        let page_size = 4096; // TODO: I just picked something random here
+
         let rounded_size = round_up_to_page_size(size, page_size);
         Self::accessible_reserved(rounded_size, rounded_size, None, MmapType::Private)
     }
@@ -63,7 +67,20 @@ impl Mmap {
     /// Create a new `Mmap` pointing to `accessible_size` bytes of page-aligned accessible memory,
     /// within a reserved mapping of `mapping_size` bytes. `accessible_size` and `mapping_size`
     /// must be native page-size multiples.
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "zkvm")]
+    pub fn accessible_reserved(
+        mut accessible_size: usize,
+        mapping_size: usize,
+        mut backing_file: Option<std::path::PathBuf>,
+        memory_type: MmapType,
+    ) -> Result<Self, String> {
+        todo!()
+    }
+
+    /// Create a new `Mmap` pointing to `accessible_size` bytes of page-aligned accessible memory,
+    /// within a reserved mapping of `mapping_size` bytes. `accessible_size` and `mapping_size`
+    /// must be native page-size multiples.
+    #[cfg(unix)]
     pub fn accessible_reserved(
         mut accessible_size: usize,
         mapping_size: usize,
@@ -185,7 +202,7 @@ impl Mmap {
     /// Create a new `Mmap` pointing to `accessible_size` bytes of page-aligned accessible memory,
     /// within a reserved mapping of `mapping_size` bytes. `accessible_size` and `mapping_size`
     /// must be native page-size multiples.
-    #[cfg(target_os = "windows")]
+    #[cfg(windows)]
     pub fn accessible_reserved(
         accessible_size: usize,
         mapping_size: usize,
@@ -254,7 +271,15 @@ impl Mmap {
     /// Make the memory starting at `start` and extending for `len` bytes accessible.
     /// `start` and `len` must be native page-size multiples and describe a range within
     /// `self`'s reserved memory.
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "zkvm")]
+    pub fn make_accessible(&mut self, start: usize, len: usize) -> Result<(), String> {
+        todo!()
+    }
+
+    /// Make the memory starting at `start` and extending for `len` bytes accessible.
+    /// `start` and `len` must be native page-size multiples and describe a range within
+    /// `self`'s reserved memory.
+    #[cfg(unix)]
     pub fn make_accessible(&mut self, start: usize, len: usize) -> Result<(), String> {
         let page_size = region::page::size();
         assert_eq!(start & (page_size - 1), 0);
@@ -271,7 +296,7 @@ impl Mmap {
     /// Make the memory starting at `start` and extending for `len` bytes accessible.
     /// `start` and `len` must be native page-size multiples and describe a range within
     /// `self`'s reserved memory.
-    #[cfg(target_os = "windows")]
+    #[cfg(windows)]
     pub fn make_accessible(&mut self, start: usize, len: usize) -> Result<(), String> {
         use std::ffi::c_void;
         use windows_sys::Win32::System::Memory::{VirtualAlloc, MEM_COMMIT, PAGE_READWRITE};
@@ -375,7 +400,12 @@ impl Mmap {
 }
 
 impl Drop for Mmap {
-    #[cfg(not(target_os = "windows"))]
+    #[cfg(target_os = "zkvm")]
+    fn drop(&mut self) {
+        todo!()
+    }
+
+    #[cfg(unix)]
     fn drop(&mut self) {
         if self.total_size != 0 {
             if self.sync_on_drop {
@@ -393,7 +423,7 @@ impl Drop for Mmap {
         }
     }
 
-    #[cfg(target_os = "windows")]
+    #[cfg(windows)]
     fn drop(&mut self) {
         if self.len() != 0 {
             use std::ffi::c_void;

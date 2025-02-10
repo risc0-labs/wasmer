@@ -42,13 +42,12 @@ static DEFAULT_STACK_SIZE: AtomicUsize = AtomicUsize::new(1024 * 1024);
 
 use std::alloc::{alloc, dealloc, Layout};
 
-pub struct BareMetalStack {
+pub struct AllocatedStack {
     base: StackPointer,
     size: usize,
-    _marker: core::marker::PhantomData<*mut u8>, // To enforce ownership
 }
 
-impl BareMetalStack {
+impl AllocatedStack {
     /// Creates a new stack with the given size.
     pub fn new(size: usize) -> Result<Self, &'static str> {
         // Apply minimum stack size.
@@ -64,12 +63,11 @@ impl BareMetalStack {
         Ok(Self {
             base: StackPointer::new(base_ptr as usize + size).unwrap(),
             size,
-            _marker: core::marker::PhantomData,
         })
     }
 }
 
-impl Drop for BareMetalStack {
+impl Drop for AllocatedStack {
     fn drop(&mut self) {
         unsafe {
             // Deallocate the stack memory using the global allocator.
@@ -79,9 +77,9 @@ impl Drop for BareMetalStack {
     }
 }
 
-unsafe impl Send for BareMetalStack {}
+unsafe impl Send for AllocatedStack {}
 
-unsafe impl Stack for BareMetalStack {
+unsafe impl Stack for AllocatedStack {
     #[inline]
     fn base(&self) -> StackPointer {
         self.base
@@ -140,6 +138,9 @@ cfg_if::cfg_if! {
     } else if #[cfg(target_os = "windows")] {
         /// Function which may handle custom signals while processing traps.
         pub type TrapHandlerFn<'a> = dyn Fn(*mut windows_sys::Win32::System::Diagnostics::Debug::EXCEPTION_POINTERS) -> bool + Send + Sync + 'a;
+    } else if #[cfg(target_os = "zkvm")] {
+        /// Function which may handle custom signals while processing traps.
+        pub type TrapHandlerFn<'a> = dyn Fn() -> bool + Send + Sync + 'a;
     }
 }
 
@@ -654,6 +655,10 @@ cfg_if::cfg_if! {
                 }
             };
         }
+    } else if #[cfg(target_os = "zkvm")] {
+        unsafe fn platform_init() {
+            todo!()
+        }
     }
 }
 
@@ -994,12 +999,12 @@ fn on_wasm_stack<F: FnOnce() -> T + 'static, T: 'static>(
     // system calls. We therefore keep a cache of pre-allocated stacks which
     // allows them to be reused multiple times.
     // FIXME(Amanieu): We should refactor this to avoid the lock.
-    static STACK_POOL: LazyLock<crossbeam_queue::SegQueue<BareMetalStack>> =
+    static STACK_POOL: LazyLock<crossbeam_queue::SegQueue<AllocatedStack>> =
         LazyLock::new(crossbeam_queue::SegQueue::new);
 
     let stack = STACK_POOL
         .pop()
-        .unwrap_or_else(|| BareMetalStack::new(stack_size).unwrap());
+        .unwrap_or_else(|| AllocatedStack::new(stack_size).unwrap());
     let mut stack = scopeguard::guard(stack, |stack| STACK_POOL.push(stack));
 
     // Create a coroutine with a new stack to run the function on.
@@ -1188,4 +1193,9 @@ pub fn lazy_per_thread_init() -> Result<(), Trap> {
             }
         }
     }
+}
+
+#[cfg(target_os = "zkvm")]
+pub fn lazy_per_thread_init() -> Result<(), Trap> {
+    todo!()
 }
